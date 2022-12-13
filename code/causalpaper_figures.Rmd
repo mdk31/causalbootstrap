@@ -39,6 +39,7 @@ source('master_funcs.R')
 
 # Causal BLB
 
+In this section, we run `r reps` of the causal BLB on independent realizations for varying $n$,  $s$, and propensity score estimation methods. In each case, $b = n^0.8$. 
 
 ```{r wblb, cache=TRUE}
 wblb <- mclapply(seq_len(nrow(dat_params)), function(didx){
@@ -89,37 +90,6 @@ wblb <- mclapply(seq_len(nrow(dat_params)), function(didx){
 ```
 
 ## Timing
-
-```{r stdboot, cache = TRUE, eval = FALSE}
-stdboot <- mclapply(seq_len(nrow(dat_params)), function(didx){
-  dg_row <- dat_params[didx, ]
-  dat <- kangschafer3(n = dg_row$n_size, te = dg_row$te, sigma = dg_row$sigma)
-  
-  trad_boot <- lapply(B_fix, function(bfix){
-    q <- microbenchmark({
-      idx <- seq_len(dg_row$n_size)
-      boot_out <- replicate(bfix, {
-        boot_idx <- sample(idx, size = dg_row$n_size, replace = TRUE)
-        boot_dat <- dat[boot_idx]
-        # Rebalance
-        wts <- make_weights(formula = Tr ~ 1 + X1 + X2, 
-                            data = boot_dat, 
-                            method = 'cbps', 
-                            normed = TRUE)
-        ys <- with(boot_dat, y*(Tr) - y*(1 - Tr))
-        ys <- ys*wts
-        sum(ys)
-      })
-    }, times = ntimes)
-    q$B <- bfix
-    q
-  })
-  trad_boot <- rbindlist(trad_boot)
-  trad_boot$n <- dg_row$n_size
-  trad_boot
-}, mc.cores = 3)
-```
-
 
 ```{r wblbtime, cache = TRUE}
 wblb_time <- lapply(seq_len(nrow(dat_params)), function(didx){
@@ -204,7 +174,6 @@ ggsave('blb_estimate.pdf')
 
 ```{r}
 wblb_time <- rbindlist(wblb_time)
-# trad_time <- rbindlist(stdboot)
 ```
 
 ## More Subsets Better for Certain Procedures
@@ -226,31 +195,6 @@ ggplot(ggdat, aes(x = subsets, y = time)) +
   theme(axis.text.x = element_text(size = 8, angle = -25))
 ggsave('method_time.pdf')
 
-```
-
-## Ours is better than traditional on even small datasets
-
-```{r, eval = FALSE}
-# B = 100, n = 500
-desire_n <- 20000
-desire_B <- 500
-desire_meth <- 'ps'
-
-ggdat1 <- wblb_time[n == desire_n & B == desire_B & method == desire_meth]
-ggdat2 <- trad_time[n == desire_n & B == desire_B]
-
-sub_txt <- paste0('Causal BLB, Subsets = ', unique(ggdat1$subsets))
-ggdat <- list(ggdat1, ggdat2)
-ggdat <- rbindlist(ggdat, fill = TRUE)
-ggdat[, `:=`(time = time/1e9,
-             method = rep(c(sub_txt, 'Traditional'), each = ntimes))]
-ggplot(ggdat, aes(x = method, y = time)) +
-  geom_boxplot() +
-  xlab('Method') +
-  ylab('Time elapsed (seconds)') +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 8, angle = -25))
-ggsave('trad_time.pdf')
 ```
 
 # Practical Considerations
@@ -395,257 +339,5 @@ for(i in sub_fix){
   ggsave(nm, height = 9, width = 7)
 }
 
-```
-
-
-# WHI Observational
-
-```{r, eval = TRUE}
-dat_path <- '~/Documents/HW/Research/CI/WHI/case-study'
-data <- foreign::read.dta(file.path(dat_path, "final_os_12 (2).dta"))
-
-data <- data %>% dplyr::select(TIME_CHD, totp, f45multi,f45mvmin,ethnic,parity,
-                               booph,meno,brca_f2,colon_f2,endo_f2,skin_f2,melan_f2,
-                               othca10y,dvt,stroke,mi,diab,hicholrp,osteopor,cvd,cabg,
-                               atrialfb,aortican,angina,hip55,smokevr,alcohol,fruits,
-                               vegtabls,f60enrgy,syst_bl,dias_bl,bmix_bl,educ,income,
-                               time_since_menopause, syst)
-
-data <- data %>% dplyr::mutate(TIME_CHD = TIME_CHD/365)
-# data <- dplyr::mutate_all(data, function(x) as.numeric(x))
-
-
-
-################################################################################################
-#Multiple Imputation
-
-Xm <- data %>% dplyr::select(TIME_CHD, totp, f45multi,f45mvmin,ethnic,parity,
-                               booph,meno,brca_f2,colon_f2,endo_f2,skin_f2,melan_f2,
-                               othca10y,dvt,stroke,mi,diab,hicholrp,osteopor,cvd,cabg,
-                               atrialfb,aortican,angina,hip55,smokevr,alcohol,fruits,
-                               vegtabls,f60enrgy,syst_bl,dias_bl,bmix_bl,educ,income,
-                               time_since_menopause, syst)
-
-
-
-print(sapply(Xm, function(x) sum(is.na(x))/dim(data)[1]))
-
-init  <-  mice(Xm, maxit=0)
-meth  <-  init$method
-predM <-  init$predictorMatrix
-
-# imputed <- mice(Xm, method="pmm", predictorMatrix=predM, m=5)
-# imputed <- mice::complete(imputed)
-
-
-# saveRDS(object = imputed, 'imputed.Rds')
-imputed <- readRDS('imputed.Rds')
-data_imputed <- imputed
-
-data_imputed$totp <- recode(data_imputed$totp, 'No'=0, 'Yes'=1)
-
-data_imputed$TIME_CHD <- data$TIME_CHD
-data_imputed$failure <- data$failure
-data_imputed$time_since_menopause <- data$time_since_menopause
-
-# confounds <- c('TIME_CHD', 'syst', 'totp', 'time_since_menopause')
-confounds <- c('totp', 'time_since_menopause')
-confounds <- names(data_imputed)[!names(data_imputed) %in% confounds]
-
-# Fix for the SuperLearner
-# data.table::setnames(data_imputed, old = confounds, new = paste0('X_', confounds))
-# confounds <- paste0('X_', confounds)
-
-for(i in confounds){
-  if(class(data_imputed[[i]]) == 'factor'){
-    levels(data_imputed[[i]]) <- make.names(levels(data_imputed[[i]]))
-  }
-}
-
-#Analysis
-# data_imputed <- dplyr::mutate_if(data_imputed,is.character,list(~as.numeric(as.factor(.))))
-
-data_imputed_1 <- data_imputed %>% dplyr::filter(time_since_menopause>0 & time_since_menopause<=10)
-confounders_1 <- data_imputed_1 %>% dplyr::select(-c(TIME_CHD, syst, totp, time_since_menopause))
-intervention_1 <- data_imputed_1$totp
-
-data_imputed_2 <- data_imputed %>% dplyr::filter(time_since_menopause>10 & time_since_menopause<=20)
-confounders_2 <- data_imputed_2 %>% dplyr::select(-c(TIME_CHD, syst,totp, time_since_menopause))
-intervention_2 <- data_imputed_2$totp
-
-data_imputed_3 <- data_imputed %>% dplyr::filter(time_since_menopause>20)
-confounders_3 <- data_imputed_3 %>% dplyr::select(-c(TIME_CHD, syst,totp,time_since_menopause))
-intervention_3 <- data_imputed_3$totp
-
-form <- paste0('totp ~ ', paste(confounds, collapse = ' + '))
-methods <- c('svm', 'ps', 'cbps')
-```
-
-## SVM Observational
-
-```{r whiobs}
-boot1 <- lapply(methods, function(m){
-
-  weight_blb(data = data.table::as.data.table(data_imputed_1),
-             R = 500,
-             pi_formula = form,
-             Y = 'TIME_CHD',
-             W = 'totp',
-             subsets = 5,
-             b = round(nrow(data_imputed_1)^0.8),
-             method = m,
-             type = 'obs',
-             kernel = 'radial',
-             cost = 0.01,
-             gamma = 1/ncol(data_imputed_1))
-})
-
-boot2 <- lapply(methods, function(m){
-
-  weight_blb(data = data.table::as.data.table(data_imputed_2),
-             R = 500,
-             pi_formula = form,
-             Y = 'TIME_CHD',
-             W = 'totp',
-             subsets = 5,
-             b = round(nrow(data_imputed_2)^0.8),
-             method = m,
-             type = 'obs',
-             kernel = 'radial',
-             cost = 0.01,
-             gamma = 1/ncol(data_imputed_2))
-})
-
-boot3 <- lapply(methods, function(m){
-  weight_blb(data = data.table::as.data.table(data_imputed_3),
-             R = 500,
-             pi_formula = form,
-             Y = 'TIME_CHD',
-             W = 'totp',
-             subsets = 5,
-             b = round(nrow(data_imputed_3)^0.8),
-             method = m,
-             type = 'obs',
-             kernel = 'radial',
-             cost = 0.01,
-             gamma = 1/ncol(data_imputed_3))
-})
-```
-
-
-```{r fullipw}
-data_list <- list(data_imputed_1, data_imputed_2, data_imputed_3)
-ipw_vals <- lapply(data_list, function(d){
-  sapply(methods, function(m){
-    
-    if(m == 'svm'){
-      wts <- make_weights_ML(formula = as.formula(form), 
-                          data = d, 
-                          normed = TRUE,
-                          method = 'svm',
-                          kernel = 'radial',
-                          cost = 0.01,
-                          gamma = 1/ncol(d))
-    } else{
-      wts <- make_weights(formula = as.formula(form), 
-                          data = d, 
-                          method = m, 
-                          normed = TRUE)
-    }
-    Y <- d$totp*(d$TIME_CHD) - (1-d$totp)*(d$TIME_CHD)
-    sum(Y*wts)
-  })
-})
-ipw_vals <- Reduce(`c`, ipw_vals)
-```
-
-```{r whitable}
-boot_lst <- list(boot1, boot2, boot3)
-times <- c('0-10', '<10-20', '20+')
-boot_lst <- lapply(seq_along(boot_lst), function(i){
-  boot_obj <- boot_lst[[i]]
-  tmp <- lapply(boot_obj, function(j){
-    se <- sapply(j, sd)
-    se <- mean(se)
-    estim <- sapply(j, mean)
-    estim <- mean(estim)
-    quants <- lapply(j, quantile, probs = c(0.025, 0.975))
-    quants <- Reduce(`+`, quants)/length(quants)
-    data.table(time = times[i],
-               estim = estim,
-               se = se,
-               lower = quants[1],
-               upper = quants[2])
-  })
-  tmp <- rbindlist(tmp)
-  tmp[, `:=`(method = car::recode(methods, "'ps'='PS';'cbps'='CBPS';'svm'='SVM'"))]
-  tmp
-})
-boot_lst <- rbindlist(boot_lst)
-boot_lst[, `:=`(true = ipw_vals)]
-setcolorder(boot_lst, c('time', 'method', 'true', 'estim', 'se', 'lower', 'upper'))
-boot_lst %>%
-  kbl(digits = 2, escape = FALSE, booktabs = TRUE,
-      col.names = c('Time since menopause', 'Method', 'True', 'Estimate', 'Std. Error', '2.5th', '97.5th')) %>%
-  kable_classic(html_font = "Cambria") %>%
-  save_kable(keep_tex = TRUE, file = 'whiobs.pdf')
-```
-
-## WHI Randomization
-
-```{r randdat}
-rand <- fread('~/Documents/HW/Research/CI/Matt_GWU_example/whirand.csv')
-# unimputed <- fread('~/Documents/HW/Research/CI/Matt_GWU_example/unimputed.csv')
-# unimputed <- unimputed[complete.cases(unimputed[, c('syst', 'treatment')]), ]
-# coxph(Surv(TIME_CHD, failure) ~ treatment, data = rand)
-```
-
-```{r whirand}
-rand_mb1 <- microbenchmark({
-  rand_diff <- weight_blb(data = data.table::as.data.table(rand),
-                        R = 100,
-                        pi_formula = form,
-                        Y = 'TIME_CHD',
-                        W = 'treatment',
-                        subsets = 4,
-                        b = round(nrow(rand)^(0.8)),
-                        type = 'rand')
-}, times = ntimes)
-
-```
-
-```{r truestats}
-mdiff <- mean(rand$TIME_CHD[rand$treatment == 1]) - mean(rand$TIME_CHD[rand$treatment == 0])
-```
-
-```{r whirandtable, fig.width=2}
-boot_lst <- list(rand_diff)
-rand_mb_lst <- list(rand_mb1)
-types <- c('Mean Difference')
-truestats <- c(mdiff)
-boot_lst <- lapply(seq_along(boot_lst), function(i){
-  boot_obj <- boot_lst[[i]]
-  mb_obj <- rand_mb_lst[[i]]
-  se <- sapply(boot_obj, sd)
-  se <- mean(se)
-  estim <- sapply(boot_obj, mean)
-  estim <- mean(estim)
-  quants <- lapply(boot_obj, quantile, probs = c(0.025, 0.975))
-  quants <- Reduce(`+`, quants)/length(quants)
-  data.table(types = types[i],
-             estim = estim,
-             truth = truestats[i],
-             med = median(mb_obj$time/1e9),
-             se = se,
-             lower = quants[1],
-             upper = quants[2])
-})
-boot_lst <- rbindlist(boot_lst)
-boot_lst %>%
-  kbl(digits = 4, escape = FALSE, booktabs = TRUE,
-      col.names = c('Estimate Type', 'Estimate', "Full Estim.", "Median (s)", 'Std. Error', '2.5th', '97.5th')) %>%
-  kable_styling(latex_options = 'scale_down') %>%
-  kable_classic(html_font = "Cambria") %>%
-  save_kable(keep_tex = TRUE, file = 'whirand.pdf')
 ```
 

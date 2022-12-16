@@ -19,6 +19,7 @@ causal_blb <- function(data, r, pi_formula = NULL, Y, W, subsets,
     lapply(partition, function(p){
       part_dat <- data[p]
       if(type == 'obs'){
+        wts <- make_weights()
         if(method %in% c('svm', 'ranger')){
           wts <- make_weights_ML(formula = as.formula(pi_formula),
                                  data = part_dat,

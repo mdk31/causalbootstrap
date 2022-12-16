@@ -7,9 +7,9 @@ kangschafer3 <- function(n, te, beta_overlap = 0.5, sigma) {
   X1 <- rnorm(n, 0, 1)
   X2 <- rnorm(n, 0, 1)
   prt <- 1/(1 + exp(-beta_overlap*(X1 + X2)))
-  
+
   Tr <- rbinom(n, 1, prt)
-  
+
   Y0  <- X1 + X2 + rnorm(n, 0, sigma)
   Y1  <- Y0 + te
   y   <- Y0*(1-Tr) + Y1*(Tr)
@@ -21,17 +21,10 @@ kangschafer3 <- function(n, te, beta_overlap = 0.5, sigma) {
 
 make_partition <- function(n, subsets, b = NULL){
   part_idx <- seq(1, n, by = 1)
-  if(is.null(b)){
-    # Generate exclusive sets
-    obs_per_set <- n/subsets
-    partition <- sample(part_idx, n)
-    partition <- split(partition, f = rep(1:subsets, each = obs_per_set))
-  } else{
-    partition <- replicate(subsets, {
+  replicate(subsets, {
       sample(part_idx, size = b, replace = FALSE)
     }, simplify = FALSE)
-  }
-  partition
+
 }
 
 make_weights <- function(formula, data, method = 'ps', normed = FALSE){
@@ -41,7 +34,7 @@ make_weights <- function(formula, data, method = 'ps', normed = FALSE){
   wi <- WeightIt::weightit(formula = as.formula(formula),
                            data = data,
                            method = method,
-                           estimand = 'ATE', 
+                           estimand = 'ATE',
                            over = FALSE)
   if(normed){
     ns <- abs(tapply(wi$weights, data[[treat]], sum))
@@ -50,7 +43,7 @@ make_weights <- function(formula, data, method = 'ps', normed = FALSE){
     ns <- 1L
   }
   wts <- wi$weights/ns
-  
+
   return(wts)
 }
 
@@ -77,7 +70,7 @@ make_weights_ML <- function(formula, data, method, normed = FALSE, ...){
                           # cost = 0.01,
                           probability = TRUE,
                           ...)
-    preds <- attr(predict(svm_out, newdata = data, probability = TRUE), 
+    preds <- attr(predict(svm_out, newdata = data, probability = TRUE),
                   "probabilities")[, "1"]
   } else if(method == 'ranger'){
     rang_out <- ranger::ranger(formula = as.formula(formula),
@@ -96,17 +89,17 @@ make_weights_ML <- function(formula, data, method, normed = FALSE, ...){
   }
 
   wts <- wts_svm/ns
-  
+
   return(wts)
 }
 
-weight_blb <- function(data, R, pi_formula = NULL, Y, W, subsets, 
+weight_blb <- function(data, R, pi_formula = NULL, Y, W, subsets,
                        type = 'obs', b = NULL, method = 'ps', ci_prep = 'perc', ...){
   stopifnot(Y %in% names(data))
   stopifnot(W %in% names(data))
   assertthat::assert_that(all(data[[W]] %in% 0:1))
   assertthat::assert_that(length(unique(data[[W]])) > 1)
-  
+
   n <- nrow(data)
   n0 <- sum(data[[W]] == 0)
   n1 <- n - n0
@@ -125,14 +118,14 @@ weight_blb <- function(data, R, pi_formula = NULL, Y, W, subsets,
     part_dat <- data[p]
     if(type == 'obs'){
       if(method %in% c('svm', 'ranger')){
-        wts <- make_weights_ML(formula = as.formula(pi_formula), 
-                            data = part_dat, 
+        wts <- make_weights_ML(formula = as.formula(pi_formula),
+                            data = part_dat,
                             method = method,
                             normed = TRUE, ...)
       } else{
-        wts <- make_weights(formula = as.formula(pi_formula), 
-                            data = part_dat, 
-                            method = method, 
+        wts <- make_weights(formula = as.formula(pi_formula),
+                            data = part_dat,
+                            method = method,
                             normed = TRUE)
       }
     } else{
@@ -144,12 +137,12 @@ weight_blb <- function(data, R, pi_formula = NULL, Y, W, subsets,
     ys <- split(part_dat[[Y]], part_dat[[W]])
     w0 <- ws[['0']]
     w1 <- ws[['1']]
-    
+
     M1 <- rmultinom(r, n1, prob = w1)
     y1 <- colSums(ys[['1']]*M1)/n1
     M0 <- rmultinom(r, n0, prob = w0)
     y0 <- colSums(ys[['0']]*M0)/n0
-    
+
     if(ci_prep == 'perc'){
       return(y1 - y0)
     } else{

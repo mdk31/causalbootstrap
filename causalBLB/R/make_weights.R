@@ -1,6 +1,6 @@
 
 
-make_weights <- function(formula, method = 'ps'){
+make_weights <- function(formula, data, method = 'ps', ...){
   A <- list(...)
 
   if (is.null(formula) || is.null(class(formula))) {
@@ -8,26 +8,20 @@ make_weights <- function(formula, method = 'ps'){
   }
 
   treat <- as.character(as.formula(formula)[2])
+  A[['method']] <- method
+  A[['formula']] <- formula
+  A[['data']] <- data
 
   wo <- do.call('WeightIt::weightit', A)
 
-  wi <- WeightIt::weightit(formula = formula,
-                           data = data,
-                           method = method,
-                           estimand = 'ATE',
-                           over = FALSE)
-
   if(normed){
-    ns <- abs(tapply(wi$weights, data[[treat]], sum))
-    ns <- ns['1']*(data[[treat]] == 1) + (1 - data[[treat]] == 1)*ns['0']
+    ns <- abs(tapply(wo$weights, data[[treat]], sum))
+    ns <- ns['1']*(data[[treat]] == 1) + (data[[treat]] == 0)*ns['0']
   } else{
     ns <- 1L
   }
-  wts <- wi$weights/ns
+  wts <- wo$weights/ns
 
   return(wts)
-
-
-
 
 }

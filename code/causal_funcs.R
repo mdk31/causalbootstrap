@@ -18,6 +18,23 @@ kangschafer3 <- function(n, te, beta_overlap = 0.5, sigma) {
   return(out)
 }
 
+# Non-independent
+kangschafer3_dep <- function(n, te, beta_overlap = 0.5, sigma, rho = 0.8) {
+  X <- mvtnorm::rmvnorm(n, sigma = diag(rho, nrow = 2, ncol = 2))
+  X1 <- X[1, ]
+  X2 <- X[2, ]
+  prt <- 1/(1 + exp(-beta_overlap*(X1 + X2)))
+  
+  Tr <- rbinom(n, 1, prt)
+  
+  Y0  <- X1 + X2 + rnorm(n, 0, sigma)
+  Y1  <- Y0 + te
+  y   <- Y0*(1-Tr) + Y1*(Tr)
+  out <- cbind(y, Tr, X1, X2)
+  out <- data.table::as.data.table(out)
+  return(out)
+}
+
 
 make_partition <- function(n, subsets, b = NULL){
   part_idx <- seq(1, n, by = 1)

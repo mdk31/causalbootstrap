@@ -177,16 +177,6 @@ weight_blb <- function(data, R, pi_formula = NULL, Y, W, subsets,
   r <- round(R/subsets)
   
   true_ATE <- mean(data$Y1) - mean(data$Y0)
-  
-  # if(is.null(b)){
-  #   obs_per_set <- n/subsets
-  #   partition <- sample(seq(1, n, by = 1), n)
-  # } else{
-  #   assertthat::assert_that(is.integer(b))
-  #   partition <- sample(seq(1, n, by = 1), b*subsets, replace = FALSE)
-  #   obs_per_set <- b
-  # }
-  # partition <- split(partition, f = rep(1:subsets, each = obs_per_set))
   partition <- make_partition(n = n, subsets = subsets, b = b)
   lapply(partition, function(p){
     part_dat <- data[p]

@@ -43,6 +43,21 @@ boot_reps_b <- replicate(r, {
   sum(ipw)
 })
 
+# ws <- split(wts, part_dat[['Tr']])
+# ys <- split(part_dat[['y']], part_dat[['Tr']])
+# w0 <- ws[['0']]
+# w1 <- ws[['1']]
+# 
+# n1 <- sum(dat$Tr == 1)
+# n0 <- sum(dat$Tr == 0)
+# b1 <- sum(part_dat$Tr == 1)
+# b0 <- sum(part_dat$Tr == 0)
+# M1 <- rmultinom(r, n1, prob = w1)
+# y1 <- colSums(ys[['1']]*M1)/n1
+# M0 <- rmultinom(r, n0, prob = w0)
+# y0 <- colSums(ys[['0']]*M0)/n0
+# y1 - y0
+
 reps <- data.table(`Bootstrap Size` = rep(c('b', 'n'), each = r),
            estim = c(boot_reps_b, boot_reps_n),
            truth = 0.5)

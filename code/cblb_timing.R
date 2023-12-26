@@ -4,7 +4,6 @@ library(mice)
 library(ggplot2)
 library(dplyr)
 library(kableExtra)
-library(microbenchmark)
 library(pbapply)
 library(WeightIt)
 set.seed(123)
@@ -29,7 +28,7 @@ blb_params <- expand.grid(B = c(100),
                           te = c(treat_eff),
                           dgp_func = c('kangschafer3'),
                           stringsAsFactors = FALSE)
-tmp_params <- expand.grid(B = c(100),
+full_params <- expand.grid(B = c(100),
                           subsets = c(1),
                           method = c('svmLinear2', 'ps', 'cbps'),
                           n_size = ns,
@@ -38,8 +37,6 @@ tmp_params <- expand.grid(B = c(100),
                           te = c(treat_eff),
                           dgp_func = c('kangschafer3'),
                           stringsAsFactors = FALSE)
-blb_params <- rbind(blb_params, tmp_params)
-
 combos <- c('n', 'sigma', 'te', 'B', 'subsets', 'method', 'gamma')
 
 source('causal_funcs.R')
@@ -104,22 +101,86 @@ if(!file.exists(file.path(dat_path, 'cblb_timing.rds'))){
   cblb <- readRDS(file.path(dat_path, 'cblb_timing.rds'))
 }
 
+# FULL SAMPLE
+if(!file.exists(file.path(dat_path, 'cblb_timing_full.rds'))){
+  cblb_full <- lapply(seq_len(nrow(full_params)), function(didx){
+    dg_row <- full_params[didx, ]
+    print(dg_row)
+    if(dg_row$dgp_func == 'kangschafer3_mult'){
+      form <- Tr ~ 1 + V3 + V4 + V5 + V6 + V7 + V8 + V9 + V10 + V11 + V12
+      overlap <- 0.3
+    } else{
+      form <- Tr ~ 1 + X1 + X2
+      overlap <- 0.5
+    }
+    replicates <- lapply(seq_len(ntimes), function(repnum){
+      set.seed(repnum)
+      dat <- do.call(dg_row$dgp_func, args = list(dg_row$n_size, te = dg_row$te, 
+                                                  sigma = dg_row$sigma, beta_overlap = overlap))
+      # Full sample nonparametric bootstrap
+      time_out <- system.time({
+        if(!dg_row$method %in% c('ps', 'cbps')){
+          wts <- make_weights_ML(formula = as.formula(form),
+                                 data = dat,
+                                 method = dg_row$method,
+                                 normed = TRUE,
+                                 prop_grid = data.frame(cost = 0.01))
+        } else{
+          wts <- make_weights(formula = as.formula(form),
+                              data = dat,
+                              method = dg_row$method,
+                              normed = TRUE)
+        }
+        Y <- dat$Tr*dat$y*wts - (1-dat$Tr)*dat$y*wts
+        theta0 <- sum(Y)
+        M <- rmultinom(dg_row$B, dg_row$n_size, prob = rep(1, dg_row$n_size))
+        boot_reps <- colSums(M*Y)
+        theta <- mean(boot_reps)
+        se <- sd(boot_reps)
+        ci <- boot:::perc.ci(t = boot_reps)[, 4:5]
+      })
+      
+      data.table(time_out = time_out['elapsed'])
+      
+    })
+    out <- rbindlist(replicates)
+    out[, `:=`(n = dg_row$n_size,
+               B = dg_row$B,
+               subsets = dg_row$subsets,
+               sigma = dg_row$sigma,
+               gamma = dg_row$gamma,
+               method = dg_row$method,
+               te = dg_row$te)]
+  })
+  cblb_full <- rbindlist(cblb_full)
+  saveRDS(cblb_full, file.path(dat_path, 'cblb_timing_full.rds'))
+} else{
+  cblb_full <- readRDS(file.path(dat_path, 'cblb_timing_full.rds'))
+}
+
+gamma <- c(0.7, 0.8)
+cblb <- rbindlist(list(cblb, cblb_full))
 cblb[, `:=`(subsets = as.character(subsets))]
 cblb[, `:=`(subsets = fifelse(subsets == 1, 'Full Sample', subsets))]
 cblb[, `:=`(subsets = factor(subsets, levels = c( '2', '4', '10', 'Full Sample')))]
 ggdat <- copy(cblb)
-ggdat <- ggdat[gamma == 1 | gamma == 0.8]
 ggdat[, `:=`(n = factor(n),
              subsets = factor(subsets),
              method = car::recode(method, "'ps'='PS';'cbps'='CBPS';'svmLinear2'='SVM'"))]
 ggdat[, `:=`(method = factor(method, levels = c('PS', 'CBPS', 'SVM')))]
 
-ggplot(ggdat, aes(x = subsets, y = time_out)) +
-  geom_boxplot() +
-  facet_grid(method ~ n, scales = 'free_y', labeller = label_both) +
-  xlab('Subsets') +
-  ylab('Time elapsed (seconds)') +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 8, angle = -25))
-ggsave(file.path(image_path, 'time_comp.pdf'), width = 7, height = 8)
+
+for(g in gamma){
+  title <- paste0('time_comp_gamma_', g, '.pdf')
+  ggdat_sub <- ggdat[gamma == g | gamma == 1]
+  ggplot(ggdat_sub, aes(x = subsets, y = time_out)) +
+    geom_boxplot() +
+    facet_grid(method ~ n, scales = 'free_y', labeller = label_both) +
+    xlab('Subsets') +
+    ylab('Time elapsed (seconds)') +
+    theme_bw() +
+    theme(axis.text.x = element_text(size = 8, angle = -25))
+  ggsave(file.path(image_path, title), width = 7, height = 8)
+  
+}
 

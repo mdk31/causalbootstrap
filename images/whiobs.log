@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999994 (TeX Live 2022) (preloaded format=xelatex 2022.7.16)  23 OCT 2023 17:42
+This is XeTeX, Version 3.141592653-2.6-0.999994 (TeX Live 2022) (preloaded format=xelatex 2022.7.16)  30 OCT 2023 10:21
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -534,7 +534,7 @@ LaTeX Font Info:    Trying to load font information for U+msb on input line 29.
 (/usr/local/texlive/2022/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-Overfull \hbox (81.06003pt too wide) in paragraph at lines 29--67
+Overfull \hbox (59.06003pt too wide) in paragraph at lines 29--45
  [] 
  []
 
@@ -562,10 +562,10 @@ braces):
 Here is how much of TeX's memory you used:
  11891 strings out of 476179
  239166 string characters out of 5809544
- 591540 words of memory out of 5000000
+ 571540 words of memory out of 5000000
  32465 multiletter control sequences out of 15000+600000
  471120 words of font info for 44 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 87i,9n,91p,359b,201s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 87i,9n,91p,359b,198s stack positions out of 10000i,1000n,20000p,200000b,200000s
 
 Output written on whiobs.pdf (1 page).

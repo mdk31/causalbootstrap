@@ -1,5 +1,5 @@
 ---
-title: "test"
+title: "WHI Table"
 output: pdf_document
 date: "2023-10-21"
 ---
@@ -190,16 +190,17 @@ ipw_vals <- lapply(dat_list, function(d){
 ipw_vals <- rbindlist(ipw_vals)
 ipw_vals[, `:=`(timemen = rep(timemen, each = length(dat_list)))]
 whi_cblb <- merge(whi_cblb, ipw_vals, by = c('method', 'timemen'))
-whi_cblb <- whi_cblb[gamma == 0.8]
+whi_cblb <- whi_cblb[gamma == 0.8 & subsets == 10]
 whi_cblb[, `:=`(method = car::recode(method, "'ps'='PS';'cbps'='CBPS';'svmLinear2'='SVM'"),
-                CI = paste0(' (', round(lower, 2), ', ', round(upper, 2), ')'))]
-whi_cblb[, `:=`(upper = NULL, lower = NULL, B = NULL, gamma = NULL)]
-setcolorder(whi_cblb, c('timemen', 'method', 'subsets', 'full', 'estim', 'se', 'CI', 'time'))
-setorder(whi_cblb, timemen, subsets)
+                CI = paste0(' (', round(lower, 2), ', ', round(upper, 2), ')'),
+                timemen = factor(timemen, levels = c('0-10', '$<$10-20', '20+')))]
+whi_cblb[, `:=`(upper = NULL, lower = NULL, B = NULL, gamma = NULL, subsets = NULL)]
+setcolorder(whi_cblb, c('timemen', 'method', 'full', 'estim', 'se', 'CI', 'time'))
+setorder(whi_cblb, timemen)
 
 whi_cblb %>%
   kbl(digits = 2, escape = FALSE, booktabs = TRUE, 
-      col.names = c('Time since menopause', 'Method', '$s$', 'Full', 'Estim.', 'SE', 'CI', 'Med. Time (s)')) %>%
+      col.names = c('Time since menopause', 'Method', 'Full', 'Estim.', 'SE', 'CI', 'Med. Time (s)')) %>%
   kable_classic(html_font = "Cambria") %>%
   save_kable(file = file.path(image_path, 'whiobs.pdf'), keep_tex = TRUE)
 ```
